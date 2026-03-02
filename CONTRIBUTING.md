@@ -6,7 +6,7 @@
 
 ### 报告 Bug
 
-如果你发现了 bug，请在 [GitHub Issues](https://github.com/meepo-quant/finshare/issues) 创建一个 issue，并包含：
+如果你发现了 bug，请在 [GitHub Issues](https://github.com/finvfamily/finshare/issues) 创建一个 issue，并包含：
 
 - 清晰的标题和描述
 - 重现步骤
@@ -144,7 +144,5 @@ finshare 专注于**数据获取**功能，以下内容不在项目范围内：
 如有任何问题，请：
 
 - 查看 [文档](https://finshare.readthedocs.io)
-- 在 [Issues](https://github.com/meepo-quant/finshare/issues) 中提问
-- 访问 [米波社区](https://meepoquant.com/community)
-
+- 在 [Issues](https://github.com/finvfamily/finshare/issues) 中提问
 感谢你的贡献！🎉
