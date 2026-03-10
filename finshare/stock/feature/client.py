@@ -202,7 +202,7 @@ class FeatureClient:
         """
         logger.debug("获取行业资金流向")
 
-        # 使用东方财富行业列表
+        # 使用东方财富行业资金流向
         url = "https://push2.eastmoney.com/api/qt/clist/get"
         params = {
             "pn": 1,
@@ -212,9 +212,9 @@ class FeatureClient:
             "ut": "bd1d9ddb04089700cf9c27f6f742628",
             "fltt": 2,
             "invt": 2,
-            "fid": "f3",
+            "fid": "f62",  # 主力净流入
             "fs": "m:90+t:2",
-            "fields": "f1,f2,f3,f4,f12,f13,f14",
+            "fields": "f2,f3,f12,f13,f14,f62",  # f62=主力净流入
         }
 
         data = self._make_request(url, params)
@@ -229,7 +229,7 @@ class FeatureClient:
             for item in diff:
                 record = {
                     "industry": item.get("f14", ""),
-                    "net_inflow": 0,  # 需要专门API
+                    "net_inflow": item.get("f62", 0),  # 主力净流入
                     "net_inflow_ratio": 0,
                     "change_rate": item.get("f3", 0),
                 }
