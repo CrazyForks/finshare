@@ -24,12 +24,12 @@ class DataNormalizer:
 
     # 价格除数表（转换为元）
     PRICE_DIVISORS = {
-        "eastmoney": 100,       # 分 → 元
-        "eastmoney_fund": 1000, # 厘 → 元 (ETF/LOF)
-        "tencent": 1000,        # 厘 → 元
-        "sina": 100,            # 分 → 元
-        "baostock": 1,          # 已经是元
-        "tdx": 100,             # 分 → 元
+        "eastmoney": 100,        # 分 -> 元
+        "eastmoney_fund": 1000,  # 厘 -> 元 (ETF/LOF)
+        "tencent": 1000,         # 厘 -> 元
+        "sina": 100,             # 分 -> 元
+        "baostock": 1,           # 已经是元
+        "tdx": 100,              # 分 -> 元
         "default": 1,
     }
 

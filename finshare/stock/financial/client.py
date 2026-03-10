@@ -44,9 +44,9 @@ class FinancialClient:
 
     # 新浪财务数据类型映射
     SINA_SOURCE_MAP = {
-        "balance": "fzb",  # 资产负债表
-        "income": "lrb",   # 利润表
-        "cashflow": "llb", # 现金流量表
+        "balance": "fzb",    # 资产负债表
+        "income": "lrb",     # 利润表
+        "cashflow": "llb",   # 现金流量表
     }
 
     # User-Agent 池

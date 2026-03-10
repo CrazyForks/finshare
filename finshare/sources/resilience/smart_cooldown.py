@@ -36,12 +36,12 @@ class CooldownConfig:
 class SourceState:
     """数据源状态"""
     source_name: str
-    cooldown_until: float = 0     # 冷却结束时间戳
-    consecutive_failures: int = 0 # 连续失败次数
+    cooldown_until: float = 0       # 冷却结束时间戳
+    consecutive_failures: int = 0   # 连续失败次数
     last_failure_time: float = 0   # 上次失败时间
     last_success_time: float = 0   # 上次成功时间
     total_requests: int = 0        # 总请求数
-    total_failures: int = 0        # 总失败次数
+    total_failures: int = 0         # 总失败次数
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
     @property

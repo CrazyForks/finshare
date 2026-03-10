@@ -259,13 +259,13 @@ def get_batch_snapshots(codes: list):
 
 
 # 工具函数
-from finshare.utils import (
+from finshare.utils import (  # noqa: E402
     validate_stock_code,
     validate_date,
 )
 
 # 缓存
-from finshare.cache import (
+from finshare.cache import (  # noqa: E402
     Cache,
     MemoryCache,
     RedisCache,
@@ -278,13 +278,13 @@ from finshare.cache import (
 )
 
 # 异步客户端
-from finshare.async_client import (
+from finshare.async_client import (  # noqa: E402
     AsyncDataSourceManager,
     get_async_manager,
 )
 
 # 稳定性保障
-from finshare.sources.resilience import (
+from finshare.sources.resilience import (  # noqa: E402
     # Circuit Breaker
     CircuitBreaker,
     CircuitBreakerConfig,
@@ -308,7 +308,7 @@ from finshare.sources.resilience import (
 )
 
 # 日志
-from finshare.logger import logger
+from finshare.logger import logger  # noqa: E402
 
 __all__ = [
     # 版本信息

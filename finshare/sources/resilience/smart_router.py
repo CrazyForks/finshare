@@ -15,14 +15,14 @@ from finshare.logger import logger
 
 class DataType(Enum):
     """数据类型"""
-    SNAPSHOT = "snapshot"      # 实时快照
-    DAILY = "daily"           # 日线数据
-    MINUTE = "minute"         # 分钟线
-    FINANCIAL = "financial"    # 财务数据
-    MONEY_FLOW = "money_flow" # 资金流向
-    LHB = "lhb"              # 龙虎榜
-    MARGIN = "margin"         # 融资融券
-    INFO = "info"             # 股票信息
+    SNAPSHOT = "snapshot"        # 实时快照
+    DAILY = "daily"              # 日线数据
+    MINUTE = "minute"            # 分钟线
+    FINANCIAL = "financial"      # 财务数据
+    MONEY_FLOW = "money_flow"    # 资金流向
+    LHB = "lhb"                  # 龙虎榜
+    MARGIN = "margin"            # 融资融券
+    INFO = "info"                # 股票信息
 
 
 class SourceType(Enum):
