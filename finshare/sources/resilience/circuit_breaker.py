@@ -7,7 +7,7 @@
 import time
 import threading
 from enum import Enum
-from typing import Callable, Any, Optional
+from typing import Callable, Any, Optional, Dict
 from dataclasses import dataclass, field
 from functools import wraps
 
@@ -180,7 +180,7 @@ class CircuitBreakerOpenError(Exception):
 
 
 # 全局熔断器管理器
-_circuit_breakers: dict[str, CircuitBreaker] = {}
+_circuit_breakers: Dict[str, CircuitBreaker] = {}
 
 
 def get_circuit_breaker(name: str) -> Optional[CircuitBreaker]:
@@ -188,7 +188,7 @@ def get_circuit_breaker(name: str) -> Optional[CircuitBreaker]:
     return _circuit_breakers.get(name)
 
 
-def get_all_circuit_breakers() -> dict[str, CircuitBreaker]:
+def get_all_circuit_breakers() -> Dict[str, CircuitBreaker]:
     """获取所有熔断器"""
     return _circuit_breakers.copy()
 
