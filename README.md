@@ -237,6 +237,7 @@ if __name__ == '__main__':
 | 项目 | 描述 |
 |------|------|
 | [finboard](https://github.com/finvfamily/finboard) | 实时行情看板 |
+| [finscreener](https://github.com/finvfamily/finscreener) | 智能选股器 |
 | [meepoquant](https://meepoquant.com) | 免费量化回测平台 |
 
 ## 🤝 贡献
