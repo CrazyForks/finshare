@@ -124,34 +124,82 @@ def _lazy_import_feature():
 
 
 # 特征数据接口
-def get_money_flow(code, start_date=None, end_date=None):
+def get_money_flow(code: str):
+    """获取资金流向
+
+    Args:
+        code: 股票代码 (如 000001.SZ)
+
+    Returns:
+        DataFrame
+    """
     _lazy_import_feature()
-    return _get_money_flow(code, start_date, end_date)
+    return _get_money_flow(code)
 
 
-def get_money_flow_industry(code, start_date=None, end_date=None):
+def get_money_flow_industry():
+    """获取行业资金流向
+
+    Returns:
+        DataFrame
+    """
     _lazy_import_feature()
-    return _get_money_flow_industry(code, start_date, end_date)
+    return _get_money_flow_industry()
 
 
-def get_lhb(start_date=None, end_date=None, limit=100):
+def get_lhb(start_date=None, end_date=None):
+    """获取龙虎榜数据
+
+    Args:
+        start_date: 开始日期 (YYYYMMDD)，默认最近30天
+        end_date: 结束日期 (YYYYMMDD)，默认今天
+
+    Returns:
+        DataFrame
+    """
     _lazy_import_feature()
-    return _get_lhb(start_date, end_date, limit)
+    return _get_lhb(start_date, end_date)
 
 
-def get_lhb_detail(code, start_date=None):
+def get_lhb_detail(code: str, trade_date=None):
+    """获取龙虎榜明细
+
+    Args:
+        code: 股票代码 (如 000001.SZ)
+        trade_date: 交易日期 (YYYYMMDD)，默认今天
+
+    Returns:
+        DataFrame
+    """
     _lazy_import_feature()
-    return _get_lhb_detail(code, start_date)
+    return _get_lhb_detail(code, trade_date)
 
 
-def get_margin(code, start_date=None, end_date=None):
+def get_margin(code: str = None):
+    """获取融资融券数据
+
+    Args:
+        code: 股票代码 (如 000001.SZ)，不传则获取市场汇总
+
+    Returns:
+        DataFrame
+    """
     _lazy_import_feature()
-    return _get_margin(code, start_date, end_date)
+    return _get_margin(code)
 
 
-def get_margin_detail(code, start_date=None):
+def get_margin_detail(code: str, trade_date=None):
+    """获取融资融券明细
+
+    Args:
+        code: 股票代码 (如 000001.SZ)
+        trade_date: 交易日期 (YYYYMMDD)，默认今天
+
+    Returns:
+        DataFrame
+    """
     _lazy_import_feature()
-    return _get_margin_detail(code, start_date)
+    return _get_margin_detail(code, trade_date)
 
 
 # K线数据接口
