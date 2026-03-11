@@ -35,6 +35,15 @@ html_theme_options = {
     'expand_navigation': True,
 }
 
+# 自定义 JavaScript
+def setup_custom_js(app, pagename, templatename, context, doctree):
+    if 'pagename' not in context:
+        context['pagename'] = pagename
+
+html_js_files = [
+    'navigation.js',
+]
+
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
     'pandas': ('https://pandas.pydata.org/docs/', None),
