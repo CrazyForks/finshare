@@ -77,20 +77,27 @@ class MemoryCache(Cache):
         self._lock = threading.RLock()
 
     def get(self, key: str) -> Optional[Any]:
-        """获取缓存"""
+        """获取缓存（过期返回 None 但不删除条目，供 get_stale 使用）"""
         with self._lock:
             item = self._cache.get(key)
             if item is None:
                 return None
 
-            # 检查是否过期
+            # 检查是否过期 — 返回 None 但保留条目供 stale 回退
             if item["expire_at"] and item["expire_at"] < time.time():
-                del self._cache[key]
                 return None
 
             # 更新访问时间
             item["accessed_at"] = time.time()
             item["access_count"] = item.get("access_count", 0) + 1
+            return item["value"]
+
+    def get_stale(self, key: str) -> Optional[Any]:
+        """获取缓存值（即使已过期也返回，用于 stale-cache 降级。不更新 accessed_at 以保留淘汰顺序）"""
+        with self._lock:
+            item = self._cache.get(key)
+            if item is None:
+                return None
             return item["value"]
 
     def set(self, key: str, value: Any, ttl: Optional[int] = None) -> bool:
