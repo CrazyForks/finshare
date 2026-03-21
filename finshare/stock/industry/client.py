@@ -40,6 +40,11 @@ class IndustryClient(BaseClient):
 
     _HEADERS = {"Referer": "https://quote.eastmoney.com/"}
 
+    # Cache TTLs (seconds)
+    TTL_LIST = 86400          # 24h — rarely changes
+    TTL_CONSTITUENTS = 86400  # 24h
+    TTL_ANALYSIS = 3600       # 1h  — daily update
+
     def __init__(self):
         super().__init__("eastmoney_industry")
 
@@ -141,140 +146,98 @@ class IndustryClient(BaseClient):
             return empty
 
     # ------------------------------------------------------------------
-    # Public methods
+    # Fetch helpers (return None on failure for _cached_request)
     # ------------------------------------------------------------------
 
-    def get_industry_list(self) -> pd.DataFrame:
-        """
-        获取东财行业板块列表。
-
-        Returns:
-            DataFrame 包含列:
-            - board_code: 板块代码
-            - board_name: 板块名称
-            - change_pct: 涨跌幅
-        """
+    def _fetch_industry_list(self) -> Optional[pd.DataFrame]:
+        """获取东财行业板块列表（主接口）"""
         logger.debug("获取东财行业板块列表")
         data = self._board_request(_FS_MAP["dc"])
         df = self._parse_board_list(data)
-        if not df.empty:
-            logger.info(f"获取东财行业板块列表成功: {len(df)}个")
+        if df.empty:
+            return None
+        logger.info(f"获取东财行业板块列表成功: {len(df)}个")
         return df
 
-    def get_industry_constituents(self, board_name: str) -> pd.DataFrame:
-        """
-        获取东财行业成分股列表。
+    def _fetch_industry_list_backup(self) -> Optional[pd.DataFrame]:
+        """备用端点：push2.eastmoney.com 行业板块"""
+        try:
+            backup_url = "https://push2.eastmoney.com/api/qt/clist/get"
+            params = {
+                "fs": "m:90+t:2",
+                "fields": "f12,f14,f3",
+                "pn": 1, "pz": 2000, "fltt": 2,
+            }
+            headers = {"Referer": "https://data.eastmoney.com/"}
+            data = self._make_request(backup_url, params=params, headers=headers)
+            df = self._parse_board_list(data)
+            if df.empty:
+                return None
+            logger.info(f"行业列表备用端点成功: {len(df)}个")
+            return df
+        except Exception as e:
+            logger.warning(f"行业列表备用端点失败: {e}")
+            return None
 
-        Args:
-            board_name: 板块名称，如 "银行"
-
-        Returns:
-            DataFrame 包含列:
-            - fs_code: 股票代码，格式 "000001.SZ"
-            - name: 股票简称
-        """
-        empty = pd.DataFrame(columns=["fs_code", "name"])
-
+    def _fetch_industry_constituents(self, board_name: str) -> Optional[pd.DataFrame]:
+        """获取东财行业成分股（内部逻辑）"""
         # First look up board_code by name
         board_list = self.get_industry_list()
         if board_list.empty:
             logger.warning(f"[{self.source_name}] 无法获取板块列表，无法查找: {board_name}")
-            return empty
+            return None
 
         matched = board_list[board_list["board_name"] == board_name]
         if matched.empty:
             logger.warning(f"[{self.source_name}] 未找到板块: {board_name}")
-            return empty
+            return None
 
         board_code = matched.iloc[0]["board_code"]
         logger.debug(f"获取东财行业成分股: {board_name} (board_code={board_code})")
 
         data = self._board_cons_request(board_code)
         df = self._parse_constituents(data)
-        if not df.empty:
-            logger.info(f"获取东财行业成分股成功: {board_name}, {len(df)}只")
+        if df.empty:
+            return None
+        logger.info(f"获取东财行业成分股成功: {board_name}, {len(df)}只")
         return df
 
-    def get_sw_industry_list(self, level: int = 3) -> pd.DataFrame:
-        """
-        获取申万行业列表。
-
-        Args:
-            level: 申万行业级别 (1/2/3)
-
-        Returns:
-            DataFrame 包含列:
-            - industry_code: 行业代码
-            - industry_name: 行业名称
-        """
-        empty = pd.DataFrame(columns=["industry_code", "industry_name"])
-
+    def _fetch_sw_industry_list(self, level: int) -> Optional[pd.DataFrame]:
+        """获取申万行业列表（内部逻辑）"""
         fs_key = _LEVEL_TO_FS.get(level)
         if not fs_key:
-            logger.warning(f"[{self.source_name}] 不支持的申万行业级别: {level}")
-            return empty
+            return None
 
         logger.debug(f"获取申万{level}级行业列表")
         data = self._board_request(_FS_MAP[fs_key])
         df = self._parse_board_list(data, rename_cols=True)
-        if not df.empty:
-            logger.info(f"获取申万{level}级行业列表成功: {len(df)}个")
+        if df.empty:
+            return None
+        logger.info(f"获取申万{level}级行业列表成功: {len(df)}个")
         return df
 
-    def get_sw_industry_constituents(self, industry_code: str) -> pd.DataFrame:
-        """
-        获取申万行业成分股。
-
-        Args:
-            industry_code: 申万行业代码
-
-        Returns:
-            DataFrame 包含列:
-            - fs_code: 股票代码，格式 "000001.SZ"
-            - name: 股票简称
-        """
+    def _fetch_sw_industry_constituents(self, industry_code: str) -> Optional[pd.DataFrame]:
+        """获取申万行业成分股（内部逻辑）"""
         logger.debug(f"获取申万行业成分股: {industry_code}")
         data = self._board_cons_request(industry_code)
         df = self._parse_constituents(data)
-        if not df.empty:
-            logger.info(f"获取申万行业成分股成功: {industry_code}, {len(df)}只")
+        if df.empty:
+            return None
+        logger.info(f"获取申万行业成分股成功: {industry_code}, {len(df)}只")
         return df
 
-    def get_sw_industry_analysis(
+    def _fetch_sw_industry_analysis(
         self,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        level: int = 1,
-    ) -> pd.DataFrame:
-        """
-        获取申万行业指数 K 线分析数据。
-
-        Args:
-            start_date: 开始日期，格式 "20260301"
-            end_date: 结束日期，格式 "20260320"
-            level: 申万行业级别 (1/2/3)
-
-        Returns:
-            DataFrame 包含列:
-            - industry_code: 行业代码
-            - industry_name: 行业名称
-            - trade_date: 交易日期
-            - close: 收盘价
-            - change_pct: 涨跌幅
-            - pe: None（东财K线API不提供）
-            - pb: None（东财K线API不提供）
-            - dividend_yield: None（东财K线API不提供）
-        """
-        empty = pd.DataFrame(columns=[
-            "industry_code", "industry_name", "trade_date",
-            "close", "change_pct", "pe", "pb", "dividend_yield",
-        ])
-
+        start_date: Optional[str],
+        end_date: Optional[str],
+        level: int,
+    ) -> Optional[pd.DataFrame]:
+        """获取申万行业指数 K 线分析数据（内部逻辑）"""
         # Get industry list for this level
         industry_list = self.get_sw_industry_list(level=level)
         if industry_list.empty:
             logger.warning(f"[{self.source_name}] 申万{level}级行业列表为空")
-            return empty
+            return None
 
         all_records = []
 
@@ -332,8 +295,135 @@ class IndustryClient(BaseClient):
                 continue
 
         if not all_records:
-            return empty
+            return None
 
         df = pd.DataFrame(all_records)
         logger.info(f"获取申万{level}级行业分析成功: {len(industry_list)}个行业, {len(df)}条记录")
         return df
+
+    # ------------------------------------------------------------------
+    # Public methods
+    # ------------------------------------------------------------------
+
+    def get_industry_list(self) -> pd.DataFrame:
+        """
+        获取东财行业板块列表。
+
+        Returns:
+            DataFrame 包含列:
+            - board_code: 板块代码
+            - board_name: 板块名称
+            - change_pct: 涨跌幅
+        """
+        cache_key = "industry_list:dc"
+        result = self._cached_request(
+            cache_key, self.TTL_LIST,
+            self._fetch_industry_list
+        )
+        if result is None:
+            logger.warning("东财行业板块主接口失败，尝试备用端点")
+            backup = self._fetch_industry_list_backup()
+            if backup is not None and not backup.empty:
+                self._cache.set(cache_key, backup, ttl=30)
+                return backup
+            return pd.DataFrame(columns=["board_code", "board_name", "change_pct"])
+        return result
+
+    def get_industry_constituents(self, board_name: str) -> pd.DataFrame:
+        """
+        获取东财行业成分股列表。
+
+        Args:
+            board_name: 板块名称，如 "银行"
+
+        Returns:
+            DataFrame 包含列:
+            - fs_code: 股票代码，格式 "000001.SZ"
+            - name: 股票简称
+        """
+        cache_key = f"industry_cons:{board_name}"
+        result = self._cached_request(
+            cache_key, self.TTL_CONSTITUENTS,
+            lambda: self._fetch_industry_constituents(board_name)
+        )
+        return result if result is not None else pd.DataFrame(columns=["fs_code", "name"])
+
+    def get_sw_industry_list(self, level: int = 3) -> pd.DataFrame:
+        """
+        获取申万行业列表。
+
+        Args:
+            level: 申万行业级别 (1/2/3)
+
+        Returns:
+            DataFrame 包含列:
+            - industry_code: 行业代码
+            - industry_name: 行业名称
+        """
+        empty = pd.DataFrame(columns=["industry_code", "industry_name"])
+
+        fs_key = _LEVEL_TO_FS.get(level)
+        if not fs_key:
+            logger.warning(f"[{self.source_name}] 不支持的申万行业级别: {level}")
+            return empty
+
+        cache_key = f"sw_industry_list:{level}"
+        result = self._cached_request(
+            cache_key, self.TTL_LIST,
+            lambda: self._fetch_sw_industry_list(level)
+        )
+        return result if result is not None else empty
+
+    def get_sw_industry_constituents(self, industry_code: str) -> pd.DataFrame:
+        """
+        获取申万行业成分股。
+
+        Args:
+            industry_code: 申万行业代码
+
+        Returns:
+            DataFrame 包含列:
+            - fs_code: 股票代码，格式 "000001.SZ"
+            - name: 股票简称
+        """
+        cache_key = f"sw_cons:{industry_code}"
+        result = self._cached_request(
+            cache_key, self.TTL_CONSTITUENTS,
+            lambda: self._fetch_sw_industry_constituents(industry_code)
+        )
+        return result if result is not None else pd.DataFrame(columns=["fs_code", "name"])
+
+    def get_sw_industry_analysis(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        level: int = 1,
+    ) -> pd.DataFrame:
+        """
+        获取申万行业指数 K 线分析数据。
+
+        Args:
+            start_date: 开始日期，格式 "20260301"
+            end_date: 结束日期，格式 "20260320"
+            level: 申万行业级别 (1/2/3)
+
+        Returns:
+            DataFrame 包含列:
+            - industry_code: 行业代码
+            - industry_name: 行业名称
+            - trade_date: 交易日期
+            - close: 收盘价
+            - change_pct: 涨跌幅
+            - pe: None（东财K线API不提供）
+            - pb: None（东财K线API不提供）
+            - dividend_yield: None（东财K线API不提供）
+        """
+        cache_key = f"sw_analysis:{level}:{start_date}:{end_date}"
+        result = self._cached_request(
+            cache_key, self.TTL_ANALYSIS,
+            lambda: self._fetch_sw_industry_analysis(start_date, end_date, level)
+        )
+        return result if result is not None else pd.DataFrame(columns=[
+            "industry_code", "industry_name", "trade_date",
+            "close", "change_pct", "pe", "pb", "dividend_yield",
+        ])
