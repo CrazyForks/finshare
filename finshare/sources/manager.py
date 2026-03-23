@@ -440,6 +440,42 @@ class DataSourceManager:
 
         return []
 
+    def get_etf_list(self, limit: int = 0) -> List[dict]:
+        """获取ETF列表（多源容灾）"""
+        for source_name in config.data_source.source_priority:
+            if not self._is_source_available(source_name):
+                continue
+            source = self.sources.get(source_name)
+            if not source or not hasattr(source, "get_etf_list"):
+                continue
+            try:
+                result = source.get_etf_list(limit)
+                if result:
+                    logger.info(f"ETF列表从 {source_name} 获取: {len(result)} 只")
+                    return result
+            except Exception as e:
+                logger.warning(f"{source_name} 获取ETF列表失败: {e}")
+                self._record_source_failure(source_name, str(e))
+        return []
+
+    def get_lof_list(self, limit: int = 0) -> List[dict]:
+        """获取LOF列表（多源容灾）"""
+        for source_name in config.data_source.source_priority:
+            if not self._is_source_available(source_name):
+                continue
+            source = self.sources.get(source_name)
+            if not source or not hasattr(source, "get_lof_list"):
+                continue
+            try:
+                result = source.get_lof_list(limit)
+                if result:
+                    logger.info(f"LOF列表从 {source_name} 获取: {len(result)} 只")
+                    return result
+            except Exception as e:
+                logger.warning(f"{source_name} 获取LOF列表失败: {e}")
+                self._record_source_failure(source_name, str(e))
+        return []
+
     def get_industry_list(self) -> List[dict]:
         """获取行业分类列表（多源容灾）
 
