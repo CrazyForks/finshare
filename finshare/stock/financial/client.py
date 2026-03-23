@@ -534,11 +534,14 @@ class FinancialClient:
                 "debt_to_assets"
             ])
 
+    # 东方财富分红数据中心API
+    DIVIDEND_DATACENTER_URL = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+
     def get_dividend(self, code: str) -> pd.DataFrame:
         """
         获取分红送股数据
 
-        注意: 东方财富分红送股API暂不可用，返回空DataFrame。
+        使用东方财富数据中心API获取分红数据。
 
         Args:
             code: 股票代码 (000001.SZ)
@@ -547,15 +550,72 @@ class FinancialClient:
             DataFrame 包含以下字段:
             - fs_code: 股票代码
             - ann_date: 公告日期
-            - divident_date: 分红日期
-            - cash_div: 现金分红(元/股)
+            - divident_date: 分红日期 (除权除息日)
+            - cash_div: 现金分红(元/股, 税前)
             - stock_div: 送股(股/10股)
-            - stock_ratio: 送股比例
+            - stock_ratio: 转增比例
             - bonus_ratio: 分红比例
         """
         fs_code = self._ensure_full_code(code)
-        logger.warning(f"分红送股 API 暂不可用，返回空数据: {fs_code}")
-        return pd.DataFrame(columns=[
+        # 提取纯数字代码用于API过滤
+        pure_code = fs_code.split(".")[0] if "." in fs_code else fs_code
+
+        logger.debug(f"获取分红送股: {fs_code}")
+
+        empty_cols = [
             "fs_code", "ann_date", "divident_date", "cash_div",
             "stock_div", "stock_ratio", "bonus_ratio"
-        ])
+        ]
+
+        params = {
+            "reportName": "RPT_SHAREBONUS_DET",
+            "columns": "ALL",
+            "filter": f'(SECURITY_CODE="{pure_code}")',
+            "pageSize": 50,
+            "sortColumns": "EX_DIVIDEND_DATE",
+            "sortTypes": -1,
+        }
+
+        data = self._make_request(self.DIVIDEND_DATACENTER_URL, params)
+
+        if not data:
+            logger.warning(f"获取分红送股失败: {fs_code}")
+            return pd.DataFrame(columns=empty_cols)
+
+        try:
+            result = data.get("result", {})
+            if not result:
+                return pd.DataFrame(columns=empty_cols)
+
+            data_list = result.get("data", [])
+            if not data_list:
+                return pd.DataFrame(columns=empty_cols)
+
+            records = []
+            for item in data_list:
+                ann_date = item.get("NOTICE_DATE") or item.get("PLAN_NOTICE_DATE") or ""
+                if ann_date:
+                    ann_date = ann_date[:10].replace("-", "")
+
+                ex_date = item.get("EX_DIVIDEND_DATE") or ""
+                if ex_date:
+                    ex_date = ex_date[:10].replace("-", "")
+
+                record = {
+                    "fs_code": fs_code,
+                    "ann_date": ann_date,
+                    "divident_date": ex_date,
+                    "cash_div": item.get("PRETAX_BONUS_RMB") or 0,
+                    "stock_div": item.get("BONUS_IT_RATIO") or 0,
+                    "stock_ratio": item.get("IT_RATIO") or 0,
+                    "bonus_ratio": item.get("DIVIDENT_RATIO") or 0,
+                }
+                records.append(record)
+
+            df = pd.DataFrame(records)
+            logger.info(f"获取分红送股成功: {fs_code}, {len(records)}条")
+            return df
+
+        except Exception as e:
+            logger.error(f"解析分红送股失败: {e}")
+            return pd.DataFrame(columns=empty_cols)
