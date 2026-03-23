@@ -190,8 +190,14 @@ class BaoStockDataSource(BaseDataSource):
                     continue
                 if market == "sz" and not code.startswith("sz."):
                     continue
+                # 只保留股票（type=1），排除指数(2)、基金等
+                if stock.get("type") != "1":
+                    continue
                 # Convert to standard format
-                clean_code = code.replace("sh.", "").replace("sz.", "")
+                clean_code = code.replace("sh.", "").replace("sz.", "").replace("bj.", "")
+                # 排除可转债(1开头)、基金/ETF(5开头)、B股(9开头)
+                if not clean_code or clean_code[0] not in ("0", "3", "6"):
+                    continue
                 all_stocks.append({
                     "code": clean_code,
                     "name": stock.get("code_name", ""),
