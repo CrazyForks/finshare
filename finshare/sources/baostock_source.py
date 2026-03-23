@@ -266,25 +266,34 @@ class BaoStockDataSource(BaseDataSource):
         转换为 BaoStock 代码格式
 
         BaoStock 格式: sh.600519 或 sz.000001
+        支持输入: SZ002594, 002594.SZ, SH600519, 600519.SH, 002594, 600519
         """
         full_code = self._ensure_full_code(code)
 
+        # 处理 002594.SZ / 600519.SH 格式
+        if "." in full_code:
+            parts = full_code.split(".")
+            if len(parts) == 2:
+                num, market = parts
+                if market.upper() in ("SZ", "SH", "BJ"):
+                    return f"{market.lower()}.{num}"
+
+        # 处理 SH600519 / SZ002594 格式
         if full_code.startswith("SH"):
             return f"sh.{full_code[2:]}"
         elif full_code.startswith("SZ"):
             return f"sz.{full_code[2:]}"
         elif full_code.startswith("BJ"):
             return f"bj.{full_code[2:]}"
-        else:
-            # 根据数字判断
-            clean_code = full_code.replace("SH", "").replace("SZ", "").replace("BJ", "")
-            if clean_code and clean_code[0].isdigit():
-                first_digit = clean_code[0]
-                if first_digit in ["6", "5"]:
-                    return f"sh.{clean_code}"
-                elif first_digit in ["0", "1", "2", "3"]:
-                    return f"sz.{clean_code}"
-            return f"sh.{clean_code}"
+
+        # 纯数字 — 根据首位判断
+        clean_code = full_code.strip()
+        if clean_code and clean_code[0].isdigit():
+            if clean_code[0] in ("6", "5"):
+                return f"sh.{clean_code}"
+            elif clean_code[0] in ("0", "1", "2", "3"):
+                return f"sz.{clean_code}"
+        return f"sh.{clean_code}"
 
     def _convert_adjustment_type(self, adjustment: AdjustmentType) -> str:
         """
