@@ -23,6 +23,11 @@ class DataType(Enum):
     LHB = "lhb"                  # 龙虎榜
     MARGIN = "margin"            # 融资融券
     INFO = "info"                # 股票信息
+    STOCK_LIST = "stock_list"    # 证券列表
+    VALUATION = "valuation"      # 估值数据
+    INDUSTRY = "industry"        # 行业分类
+    DIVIDEND = "dividend"        # 分红数据
+    GLOBAL_INDEX = "global_index"  # 全球指数
 
 
 class SourceType(Enum):
@@ -75,6 +80,23 @@ DEFAULT_PREFERENCES: Dict[DataType, List[SourcePreference]] = {
     DataType.INFO: [
         SourcePreference(SourceType.EASTMONEY, priority=1, timeout=15),
         SourcePreference(SourceType.BAOSTOCK, priority=2, timeout=20),
+    ],
+    DataType.STOCK_LIST: [
+        SourcePreference(SourceType.EASTMONEY, priority=1, timeout=30),
+        SourcePreference(SourceType.BAOSTOCK, priority=2, timeout=60),
+    ],
+    DataType.VALUATION: [
+        SourcePreference(SourceType.EASTMONEY, priority=1, timeout=20),
+    ],
+    DataType.INDUSTRY: [
+        SourcePreference(SourceType.EASTMONEY, priority=1, timeout=20),
+        SourcePreference(SourceType.BAOSTOCK, priority=2, timeout=60),
+    ],
+    DataType.DIVIDEND: [
+        SourcePreference(SourceType.EASTMONEY, priority=1, timeout=20),
+    ],
+    DataType.GLOBAL_INDEX: [
+        SourcePreference(SourceType.EASTMONEY, priority=1, timeout=20),
     ],
 }
 

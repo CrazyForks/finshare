@@ -409,6 +409,62 @@ class DataSourceManager:
 
         return None
 
+    def get_stock_list(self, market: str = "all", limit: int = 0) -> List[dict]:
+        """获取证券列表（多源容灾）
+
+        按数据源优先级依次尝试，第一个成功的返回。
+
+        Args:
+            market: 市场类型 (all/sh/sz)
+            limit: 限制返回数量，0表示获取全部
+
+        Returns:
+            股票列表
+        """
+        for source_name in config.data_source.source_priority:
+            if not self._is_source_available(source_name):
+                continue
+
+            source = self.sources.get(source_name)
+            if not source or not hasattr(source, "get_stock_list"):
+                continue
+
+            try:
+                result = source.get_stock_list(market, limit)
+                if result:
+                    logger.info(f"证券列表从 {source_name} 获取: {len(result)} 只")
+                    return result
+            except Exception as e:
+                logger.warning(f"{source_name} 获取证券列表失败: {e}")
+                self._record_source_failure(source_name, str(e))
+
+        return []
+
+    def get_industry_list(self) -> List[dict]:
+        """获取行业分类列表（多源容灾）
+
+        Returns:
+            行业列表
+        """
+        for source_name in config.data_source.source_priority:
+            if not self._is_source_available(source_name):
+                continue
+
+            source = self.sources.get(source_name)
+            if not source or not hasattr(source, "get_industry_list"):
+                continue
+
+            try:
+                result = source.get_industry_list()
+                if result:
+                    logger.info(f"行业列表从 {source_name} 获取: {len(result)} 个")
+                    return result
+            except Exception as e:
+                logger.warning(f"{source_name} 获取行业列表失败: {e}")
+                self._record_source_failure(source_name, str(e))
+
+        return []
+
     def test_snapshot(self, code: str = "159941"):
         """测试快照数据获取（示例方法）"""
         print(f"测试快照: {code}")
