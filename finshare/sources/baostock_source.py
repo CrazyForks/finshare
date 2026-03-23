@@ -174,6 +174,57 @@ class BaoStockDataSource(BaseDataSource):
             updated_at=datetime.now(),
         )
 
+    def get_stock_list(self, market: str = "all", limit: int = 0) -> List[dict]:
+        """获取A股股票列表（BaoStock 备份源）"""
+        self._ensure_login()
+        try:
+            rs = bs.query_stock_basic()
+            all_stocks = []
+            while rs.next():
+                row = rs.get_row_data()
+                fields = rs.fields
+                stock = dict(zip(fields, row))
+                # Filter by market if needed
+                code = stock.get("code", "")
+                if market == "sh" and not code.startswith("sh."):
+                    continue
+                if market == "sz" and not code.startswith("sz."):
+                    continue
+                # Convert to standard format
+                clean_code = code.replace("sh.", "").replace("sz.", "")
+                all_stocks.append({
+                    "code": clean_code,
+                    "name": stock.get("code_name", ""),
+                    "market": 1 if code.startswith("sh.") else 0,
+                })
+                if limit > 0 and len(all_stocks) >= limit:
+                    break
+            logger.info(f"BaoStock 获取股票列表: {len(all_stocks)} 只")
+            return all_stocks
+        except Exception as e:
+            logger.error(f"BaoStock 获取股票列表失败: {e}")
+            return []
+
+    def get_industry_list(self) -> List[dict]:
+        """获取行业分类列表（BaoStock 备份源）"""
+        self._ensure_login()
+        try:
+            rs = bs.query_stock_industry()
+            industries = {}
+            while rs.next():
+                row = rs.get_row_data()
+                fields = rs.fields
+                data = dict(zip(fields, row))
+                industry = data.get("industry", "")
+                if industry and industry not in industries:
+                    industries[industry] = {"board_name": industry}
+            result = list(industries.values())
+            logger.info(f"BaoStock 获取行业列表: {len(result)} 个")
+            return result
+        except Exception as e:
+            logger.error(f"BaoStock 获取行业列表失败: {e}")
+            return []
+
     def get_snapshot_data(self, code: str) -> Optional[SnapshotData]:
         """
         获取实时快照数据
