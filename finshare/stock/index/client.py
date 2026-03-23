@@ -11,17 +11,24 @@ from finshare.stock.base_client import BaseClient
 from finshare.logger import logger
 
 
+# 指数名称 → 中证指数代码映射
+INDEX_CODE_MAP = {
+    "上证指数": "000001",
+    "沪深300": "000300",
+    "中证500": "000905",
+    "中证1000": "000852",
+    "创业板指": "399006",
+    "上证50": "000016",
+    "深证成指": "399001",
+    "科创50": "000688",
+    "中证全指": "000985",
+    "中证800": "000906",
+}
+
+# 旧版乐估乐股符号映射（兼容）
 LG_SYMBOL_MAP = {
-    "上证指数": "000001.XSHG",
-    "沪深300": "000300.XSHG",
-    "中证500": "000905.XSHG",
-    "中证1000": "000852.XSHG",
-    "创业板指": "399006.XSHE",
-    "上证50": "000016.XSHG",
-    "深证成指": "399001.XSHE",
-    "科创50": "000688.XSHG",
-    "中证全指": "000985.XSHG",
-    "中证800": "000906.XSHG",
+    name: f"{code}.XSHG" if code.startswith(("000", "9")) else f"{code}.XSHE"
+    for name, code in INDEX_CODE_MAP.items()
 }
 
 # Also support lookup by code (without exchange suffix)
@@ -32,8 +39,7 @@ class IndexClient(BaseClient):
     """指数成分股 + PE/PB 估值历史客户端"""
 
     CLIST_URL = "https://push2.eastmoney.com/api/qt/clist/get"
-    LG_PE_URL = "https://legulegu.com/api/stockdata/index-pe"
-    LG_PB_URL = "https://legulegu.com/api/stockdata/index-pb"
+    CSINDEX_PERF_URL = "https://www.csindex.com.cn/csindex-home/perf/index-perf"
 
     # Cache TTLs (seconds)
     TTL_CONSTITUENTS = 86400  # 24h — quarterly rebalance
@@ -58,9 +64,9 @@ class IndexClient(BaseClient):
             return f"0.{code}"
         return f"1.{code}"
 
-    def _resolve_lg_symbol(self, symbol: str) -> Optional[str]:
+    def _resolve_index_code(self, symbol: str) -> Optional[str]:
         """
-        将中文名称或代码映射到乐估乐股 symbol。
+        将中文名称或代码映射到纯数字指数代码。
 
         支持：
         - 中文名称，如 "沪深300"
@@ -68,20 +74,27 @@ class IndexClient(BaseClient):
         - 已包含交易所后缀，如 "000300.XSHG"
         """
         # Direct map by Chinese name
-        if symbol in LG_SYMBOL_MAP:
-            return LG_SYMBOL_MAP[symbol]
+        if symbol in INDEX_CODE_MAP:
+            return INDEX_CODE_MAP[symbol]
 
-        # Already in legulegu format
-        if ".XSHG" in symbol or ".XSHE" in symbol:
-            return symbol
+        # Already contains exchange suffix
+        if "." in symbol:
+            return symbol.split(".")[0]
 
-        # Lookup by numeric code
+        # Numeric code directly
         code = symbol.strip()
         if code in _CODE_TO_LG:
-            return _CODE_TO_LG[code]
+            return code
 
-        logger.warning(f"[eastmoney_index] 无法映射指数代码到乐估乐股 symbol: {symbol}")
+        logger.warning(f"[eastmoney_index] 无法映射指数代码: {symbol}")
         return None
+
+    def _resolve_lg_symbol(self, symbol: str) -> Optional[str]:
+        """兼容旧接口：将中文名称或代码映射到乐估乐股 symbol。"""
+        code = self._resolve_index_code(symbol)
+        if not code:
+            return None
+        return _CODE_TO_LG.get(code)
 
     # ------------------------------------------------------------------
     # Private fetch methods
@@ -156,84 +169,93 @@ class IndexClient(BaseClient):
             logger.warning(f"CSIndex 备用源失败: {e}")
             return None
 
-    def _fetch_index_pe(self, symbol: str) -> Optional[pd.DataFrame]:
-        """从乐估乐股获取指数 PE 历史"""
-        lg_symbol = self._resolve_lg_symbol(symbol)
-        if not lg_symbol:
-            return None
+    def _fetch_csindex_perf(self, index_code: str, start_date: str = "20100101") -> Optional[pd.DataFrame]:
+        """
+        从中证指数官网获取指数行情+PE历史数据。
 
-        logger.debug(f"获取指数PE: {symbol} -> {lg_symbol}")
+        CSIndex API 返回字段包括 peg (即PE) 和收盘价等。
 
-        params = {"token": "", "indexCode": lg_symbol}
-        headers = {"Referer": "https://legulegu.com/stockdata/index-pe"}
+        Returns:
+            包含 date, close, pe 的 DataFrame，或 None。
+        """
+        import datetime as dt
 
-        data = self._make_request(self.LG_PE_URL, params=params, headers=headers)
+        logger.debug(f"获取CSIndex指数行情: {index_code}")
+
+        end_date = dt.date.today().strftime("%Y%m%d")
+        params = {
+            "indexCode": index_code,
+            "startDate": start_date,
+            "endDate": end_date,
+        }
+        headers = {"Referer": "https://www.csindex.com.cn/"}
+
+        data = self._make_request(self.CSINDEX_PERF_URL, params=params, headers=headers)
 
         if not data:
             return None
 
         try:
-            items = data if isinstance(data, list) else data.get("data", [])
+            # CSIndex returns {"code": "200", "data": [...]}
+            items = data.get("data", []) if isinstance(data, dict) else data
 
             if not items:
-                logger.warning(f"[eastmoney_index] PE 数据为空: {symbol}")
+                logger.warning(f"[eastmoney_index] CSIndex 数据为空: {index_code}")
                 return None
 
             records = []
             for item in items:
                 records.append({
-                    "date": pd.to_datetime(item["date"], unit="ms"),
-                    "index_val": item.get("close") or item.get("indexValue") or item.get("index_val"),
-                    "pe": item.get("pe"),
-                    "pe_ttm": item.get("peTTM") or item.get("pe_ttm"),
+                    "date": pd.to_datetime(str(item.get("tradeDate", "")), format="%Y%m%d"),
+                    "close": item.get("close"),
+                    "pe": item.get("peg"),  # CSIndex 的 peg 字段实际是 PE
                 })
 
             df = pd.DataFrame(records)
-            logger.info(f"获取指数PE成功: {symbol}, {len(df)}条")
+            logger.info(f"获取CSIndex指数行情成功: {index_code}, {len(df)}条")
             return df
 
+        except Exception as e:
+            logger.error(f"解析CSIndex指数行情失败: {e}")
+            return None
+
+    def _fetch_index_pe(self, symbol: str) -> Optional[pd.DataFrame]:
+        """从中证指数官网获取指数 PE 历史"""
+        index_code = self._resolve_index_code(symbol)
+        if not index_code:
+            return None
+
+        logger.debug(f"获取指数PE: {symbol} -> {index_code}")
+
+        raw_df = self._fetch_csindex_perf(index_code)
+        if raw_df is None or raw_df.empty:
+            return None
+
+        try:
+            df = pd.DataFrame({
+                "date": raw_df["date"],
+                "index_val": raw_df["close"],
+                "pe": raw_df["pe"],
+                "pe_ttm": raw_df["pe"],  # CSIndex 仅提供一种 PE
+            })
+            logger.info(f"获取指数PE成功: {symbol}, {len(df)}条")
+            return df
         except Exception as e:
             logger.error(f"解析指数PE失败: {e}")
             return None
 
     def _fetch_index_pb(self, symbol: str) -> Optional[pd.DataFrame]:
-        """从乐估乐股获取指数 PB 历史"""
-        lg_symbol = self._resolve_lg_symbol(symbol)
-        if not lg_symbol:
-            return None
+        """
+        获取指数 PB 历史。
 
-        logger.debug(f"获取指数PB: {symbol} -> {lg_symbol}")
-
-        params = {"token": "", "indexCode": lg_symbol}
-        headers = {"Referer": "https://legulegu.com/stockdata/index-pb"}
-
-        data = self._make_request(self.LG_PB_URL, params=params, headers=headers)
-
-        if not data:
-            return None
-
-        try:
-            items = data if isinstance(data, list) else data.get("data", [])
-
-            if not items:
-                logger.warning(f"[eastmoney_index] PB 数据为空: {symbol}")
-                return None
-
-            records = []
-            for item in items:
-                records.append({
-                    "date": pd.to_datetime(item["date"], unit="ms"),
-                    "index_val": item.get("close") or item.get("indexValue") or item.get("index_val"),
-                    "pb": item.get("pb"),
-                })
-
-            df = pd.DataFrame(records)
-            logger.info(f"获取指数PB成功: {symbol}, {len(df)}条")
-            return df
-
-        except Exception as e:
-            logger.error(f"解析指数PB失败: {e}")
-            return None
+        注意: 中证指数官网免费API不提供PB数据。
+        返回 None 并记录警告。如需PB数据请接入付费数据源。
+        """
+        logger.warning(
+            f"[eastmoney_index] 指数PB历史数据暂不可用 (中证指数官网不提供PB): {symbol}。"
+            " 如需PB数据请接入 Wind / Choice 等付费数据源。"
+        )
+        return None
 
     # ------------------------------------------------------------------
     # Public methods
@@ -257,11 +279,11 @@ class IndexClient(BaseClient):
         return result
 
     def get_index_pe(self, symbol: str) -> pd.DataFrame:
-        """获取指数 PE 历史（带缓存）"""
-        lg_symbol = self._resolve_lg_symbol(symbol)
-        if not lg_symbol:
+        """获取指数 PE 历史（带缓存，数据源: 中证指数官网）"""
+        index_code = self._resolve_index_code(symbol)
+        if not index_code:
             return pd.DataFrame(columns=["date", "index_val", "pe", "pe_ttm"])
-        cache_key = f"index_pe:{lg_symbol}"
+        cache_key = f"index_pe:{index_code}"
         result = self._cached_request(
             cache_key, self.TTL_VALUATION,
             lambda: self._fetch_index_pe(symbol)
@@ -269,11 +291,11 @@ class IndexClient(BaseClient):
         return result if result is not None else pd.DataFrame(columns=["date", "index_val", "pe", "pe_ttm"])
 
     def get_index_pb(self, symbol: str) -> pd.DataFrame:
-        """获取指数 PB 历史（带缓存）"""
-        lg_symbol = self._resolve_lg_symbol(symbol)
-        if not lg_symbol:
+        """获取指数 PB 历史（暂不可用 - 中证指数官网不提供 PB）"""
+        index_code = self._resolve_index_code(symbol)
+        if not index_code:
             return pd.DataFrame(columns=["date", "index_val", "pb"])
-        cache_key = f"index_pb:{lg_symbol}"
+        cache_key = f"index_pb:{index_code}"
         result = self._cached_request(
             cache_key, self.TTL_VALUATION,
             lambda: self._fetch_index_pb(symbol)
