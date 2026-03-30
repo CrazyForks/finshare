@@ -81,8 +81,8 @@ class DataSourceConfig:
         self.market_source_priority = {
             "US": ["yahoo", "eastmoney"],  # 美股：Yahoo Finance 优先，东方财富备选
             "HK": ["eastmoney"],            # 港股：东方财富
-            "SH": ["eastmoney", "tdx", "baostock", "tencent", "sina"],  # 上海A股
-            "SZ": ["eastmoney", "tdx", "baostock", "tencent", "sina"],  # 深圳A股
+            "SH": ["eastmoney", "baostock", "tencent", "sina"],  # 上海A股
+            "SZ": ["eastmoney", "baostock", "tencent", "sina"],  # 深圳A股
             "BJ": ["eastmoney", "tencent"],  # 北京A股
         }
 
