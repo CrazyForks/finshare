@@ -1015,3 +1015,163 @@ class EastMoneyDataSource(BaseDataSource):
         except Exception as e:
             logger.error(f"解析期货列表失败: {e}")
             return []
+
+    # ============ 概念板块 + 资金流接口 ============
+
+    def get_concept_list(self) -> "pd.DataFrame":
+        """获取概念板块列表。"""
+        import pandas as pd
+        params = {
+            "pn": "1", "pz": "500", "po": "1", "np": "1", "fltt": "2", "invt": "2",
+            "fs": "m:90+t:3+f:!50", "fields": "f2,f3,f12,f14,f62,f184",
+        }
+        data = self._make_request("https://82.push2.eastmoney.com/api/qt/clist/get", params=params)
+        if not data or "data" not in data or not data["data"]:
+            return pd.DataFrame()
+        diff = data["data"].get("diff", [])
+        if not diff:
+            return pd.DataFrame()
+        records = [{"board_code": str(item.get("f12", "")), "board_name": str(item.get("f14", "")),
+                    "change_pct": float(item.get("f3", 0)), "net_inflow": float(item.get("f62", 0)),
+                    "net_inflow_ratio": float(item.get("f184", 0))} for item in diff]
+        return pd.DataFrame(records)
+
+    def get_concept_constituents(self, board_code: str) -> "pd.DataFrame":
+        """获取概念板块成分股。"""
+        import pandas as pd
+        params = {
+            "pn": "1", "pz": "1000", "po": "1", "np": "1", "fltt": "2", "invt": "2",
+            "fs": f"b:{board_code}+f:!50", "fields": "f12,f14",
+        }
+        data = self._make_request("https://82.push2.eastmoney.com/api/qt/clist/get", params=params)
+        if not data or "data" not in data or not data["data"]:
+            return pd.DataFrame()
+        diff = data["data"].get("diff", [])
+        if not diff:
+            return pd.DataFrame()
+        records = []
+        for item in diff:
+            code = str(item.get("f12", ""))
+            name = str(item.get("f14", ""))
+            fs_code = f"{code}.SH" if code.startswith("6") else f"{code}.SZ" if code.startswith(("0", "3")) else code
+            records.append({"fs_code": fs_code, "name": name})
+        return pd.DataFrame(records)
+
+    def get_concept_money_flow(self) -> "pd.DataFrame":
+        """获取概念板块资金流。"""
+        import pandas as pd
+        params = {
+            "pn": "1", "pz": "500", "po": "1", "np": "1", "fltt": "2", "invt": "2",
+            "fs": "m:90+t:3+f:!50", "fields": "f3,f14,f62,f184",
+        }
+        data = self._make_request("https://82.push2.eastmoney.com/api/qt/clist/get", params=params)
+        if not data or "data" not in data or not data["data"]:
+            return pd.DataFrame()
+        diff = data["data"].get("diff", [])
+        if not diff:
+            return pd.DataFrame()
+        records = [{"concept": str(item.get("f14", "")), "net_inflow": float(item.get("f62", 0)),
+                    "net_inflow_ratio": float(item.get("f184", 0)), "change_rate": float(item.get("f3", 0))} for item in diff]
+        return pd.DataFrame(records)
+
+    def get_money_flow_stock(self, code: str) -> "pd.DataFrame":
+        """获取个股资金流（日级别历史）。"""
+        import pandas as pd
+        full_code = self._ensure_full_code(code)
+        secid = self._convert_to_secid(full_code)
+        params = {
+            "secid": secid, "fields1": "f1,f2,f3,f7",
+            "fields2": "f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61,f62,f63",
+            "klt": "101", "lmt": "60",
+        }
+        data = self._make_request("https://push2his.eastmoney.com/api/qt/stock/fflow/daykline/get", params=params)
+        if not data or "data" not in data or not data["data"]:
+            return pd.DataFrame()
+        klines = data["data"].get("klines", [])
+        if not klines:
+            return pd.DataFrame()
+        records = []
+        for line in klines:
+            parts = line.split(",")
+            if len(parts) < 7:
+                continue
+            records.append({"trade_time": parts[0], "main_inflow": float(parts[1]), "main_outflow": float(parts[2]),
+                            "main_net": float(parts[3]), "retail_inflow": float(parts[4]),
+                            "retail_outflow": float(parts[5]), "retail_net": float(parts[6])})
+        return pd.DataFrame(records)
+
+    def get_earnings_calendar(self, date: str) -> "pd.DataFrame":
+        """获取某日财报披露日历。"""
+        import pandas as pd
+        params = {
+            "reportName": "RPT_PUBLIC_BS_APPOIN",
+            "columns": "SECURITY_CODE,SECURITY_NAME_ABBR,REPORT_DATE,REPORT_TYPE,UPDATE_DATE",
+            "filter": f"(UPDATE_DATE='{date}')", "pageSize": "500", "pageNumber": "1",
+            "sortColumns": "SECURITY_CODE", "sortTypes": "1",
+        }
+        data = self._make_request("https://datacenter-web.eastmoney.com/api/data/v1/get", params=params)
+        if not data or "result" not in data or not data["result"]:
+            return pd.DataFrame()
+        rows = data["result"].get("data", [])
+        if not rows:
+            return pd.DataFrame()
+        records = [{"code": row.get("SECURITY_CODE", ""), "name": row.get("SECURITY_NAME_ABBR", ""),
+                    "report_date": row.get("REPORT_DATE", ""), "report_type": row.get("REPORT_TYPE", "")} for row in rows]
+        return pd.DataFrame(records)
+
+    def get_earnings_preannouncement(self, code: str) -> "pd.DataFrame":
+        """获取个股业绩预告。"""
+        import pandas as pd
+        params = {
+            "reportName": "RPT_PUBLIC_OP_NEWPREDICT",
+            "columns": "REPORT_DATE,PREDICT_TYPE,PREDICT_CONTENT,NOTICE_DATE",
+            "filter": f'(SECURITY_CODE="{code}")', "pageSize": "20", "pageNumber": "1",
+            "sortColumns": "NOTICE_DATE", "sortTypes": "-1",
+        }
+        data = self._make_request("https://datacenter-web.eastmoney.com/api/data/v1/get", params=params)
+        if not data or "result" not in data or not data["result"]:
+            return pd.DataFrame()
+        rows = data["result"].get("data", [])
+        if not rows:
+            return pd.DataFrame()
+        records = [{"report_period": row.get("REPORT_DATE", ""), "pre_type": row.get("PREDICT_TYPE", ""),
+                    "pre_profit_range": row.get("PREDICT_CONTENT", ""), "announce_date": row.get("NOTICE_DATE", "")} for row in rows]
+        return pd.DataFrame(records)
+
+    def get_market_overview(self) -> "pd.DataFrame":
+        """获取市场概览。"""
+        import pandas as pd
+        from datetime import date
+        params = {"fltt": "2", "fields": "f104,f105,f106,f107", "secids": "1.000001,0.399001"}
+        data = self._make_request("https://82.push2.eastmoney.com/api/qt/ulist.np/get", params=params)
+        if not data or "data" not in data or not data["data"]:
+            return pd.DataFrame()
+        diff = data["data"].get("diff", [])
+        if not diff:
+            return pd.DataFrame()
+        return pd.DataFrame([{
+            "date": date.today().isoformat(),
+            "up_count": sum(int(d.get("f104", 0)) for d in diff),
+            "down_count": sum(int(d.get("f105", 0)) for d in diff),
+            "limit_up": sum(int(d.get("f106", 0)) for d in diff),
+            "limit_down": sum(int(d.get("f107", 0)) for d in diff),
+        }])
+
+    def get_margin_trading_summary(self) -> "pd.DataFrame":
+        """获取全市场融资融券汇总。"""
+        import pandas as pd
+        params = {
+            "reportName": "RPTA_MUTUAL_MARKETSTAT", "columns": "ALL",
+            "pageSize": "5", "pageNumber": "1", "sortColumns": "TRADE_DATE", "sortTypes": "-1",
+        }
+        data = self._make_request("https://datacenter-web.eastmoney.com/api/data/v1/get", params=params)
+        if not data or "result" not in data or not data["result"]:
+            return pd.DataFrame()
+        rows = data["result"].get("data", [])
+        if not rows:
+            return pd.DataFrame()
+        records = [{"date": row.get("TRADE_DATE", "")[:10], "margin_buy": float(row.get("BUY_AMT", 0) or 0),
+                    "margin_balance": float(row.get("FIN_BALANCE", 0) or 0),
+                    "short_sell_volume": float(row.get("SL_SELL_VOL", 0) or 0),
+                    "short_balance": float(row.get("SL_BALANCE", 0) or 0)} for row in rows]
+        return pd.DataFrame(records)

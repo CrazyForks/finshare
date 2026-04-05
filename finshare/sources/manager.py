@@ -661,6 +661,48 @@ class DataSourceManager:
 
         return []
 
+    # ============ 概念板块 + 资金流路由 ============
+
+    def get_concept_list(self) -> pd.DataFrame:
+        """获取概念板块列表。"""
+        result = self._tiered_request(data_type=DataType.CONCEPT_LIST, method_name="get_concept_list", collector_name="ConceptList")
+        return result if result is not None else pd.DataFrame()
+
+    def get_concept_constituents(self, board_code: str) -> pd.DataFrame:
+        """获取概念板块成分股。"""
+        result = self._tiered_request(data_type=DataType.CONCEPT_CONSTITUENTS, method_name="get_concept_constituents", args=(board_code,), collector_name="ConceptConstituents")
+        return result if result is not None else pd.DataFrame()
+
+    def get_concept_money_flow(self) -> pd.DataFrame:
+        """获取概念板块资金流。"""
+        result = self._tiered_request(data_type=DataType.CONCEPT_MONEY_FLOW, method_name="get_concept_money_flow", collector_name="ConceptMoneyFlow")
+        return result if result is not None else pd.DataFrame()
+
+    def get_money_flow_stock(self, code: str) -> pd.DataFrame:
+        """获取个股资金流（日级别历史）。"""
+        result = self._tiered_request(data_type=DataType.MONEY_FLOW_STOCK, method_name="get_money_flow_stock", args=(code,), collector_name="MoneyFlowStock")
+        return result if result is not None else pd.DataFrame()
+
+    def get_earnings_calendar(self, date: str) -> pd.DataFrame:
+        """获取某日财报披露日历。"""
+        result = self._tiered_request(data_type=DataType.EARNINGS_CALENDAR, method_name="get_earnings_calendar", args=(date,), collector_name="EarningsCalendar")
+        return result if result is not None else pd.DataFrame()
+
+    def get_earnings_preannouncement(self, code: str) -> pd.DataFrame:
+        """获取个股业绩预告。"""
+        result = self._tiered_request(data_type=DataType.EARNINGS_PREANNOUNCE, method_name="get_earnings_preannouncement", args=(code,), collector_name="EarningsPreannounce")
+        return result if result is not None else pd.DataFrame()
+
+    def get_market_overview(self) -> pd.DataFrame:
+        """获取市场概览。"""
+        result = self._tiered_request(data_type=DataType.MARKET_OVERVIEW, method_name="get_market_overview", collector_name="MarketOverview")
+        return result if result is not None else pd.DataFrame()
+
+    def get_margin_trading_summary(self) -> pd.DataFrame:
+        """获取全市场融资融券汇总。"""
+        result = self._tiered_request(data_type=DataType.MARGIN_SUMMARY, method_name="get_margin_trading_summary", collector_name="MarginSummary")
+        return result if result is not None else pd.DataFrame()
+
     def test_snapshot(self, code: str = "159941"):
         """测试快照数据获取（示例方法）"""
         print(f"测试快照: {code}")

@@ -670,6 +670,61 @@ def get_sw_industry_analysis(start_date=None, end_date=None, level=1):
     return _get_sw_industry_analysis(start_date, end_date, level)
 
 
+# 概念板块 + 资金流 + 财报 + 情绪 (延迟导入)
+def get_concept_list():
+    """获取概念板块列表（含涨跌幅和资金流）。"""
+    from finshare.stock.concept import get_concept_list as _fn
+    return _fn()
+
+
+def get_concept_constituents(board_code: str):
+    """获取概念板块成分股。"""
+    from finshare.stock.concept import get_concept_constituents as _fn
+    return _fn(board_code)
+
+
+def get_concept_money_flow():
+    """获取概念板块资金流。"""
+    from finshare.stock.concept import get_concept_money_flow as _fn
+    return _fn()
+
+
+def get_money_flow_stock(code: str):
+    """获取个股资金流（日级别历史）。"""
+    from finshare.sources import get_data_manager
+    return get_data_manager().get_money_flow_stock(code)
+
+
+def get_earnings_calendar(date: str):
+    """获取某日财报披露日历。"""
+    from finshare.stock.earnings import get_earnings_calendar as _fn
+    return _fn(date)
+
+
+def get_earnings_preannouncement(code: str):
+    """获取个股业绩预告。"""
+    from finshare.stock.earnings import get_earnings_preannouncement as _fn
+    return _fn(code)
+
+
+def get_market_overview():
+    """获取市场概览（涨跌家数、涨停跌停数）。"""
+    from finshare.stock.sentiment import get_market_overview as _fn
+    return _fn()
+
+
+def get_margin_trading_summary():
+    """获取全市场融资融券汇总。"""
+    from finshare.stock.sentiment import get_margin_trading_summary as _fn
+    return _fn()
+
+
+def get_fear_greed_index(overview, margin, north_flow, turnover_history):
+    """计算恐贪指数。"""
+    from finshare.stock.sentiment import get_fear_greed_index as _fn
+    return _fn(overview, margin, north_flow, turnover_history)
+
+
 # 市场估值 (延迟导入)
 _get_market_pb = None
 _get_global_index_daily = None
@@ -840,6 +895,16 @@ __all__ = [
     "get_sw_industry_list",
     "get_sw_industry_constituents",
     "get_sw_industry_analysis",
+    # 概念板块 + 资金流 + 财报 + 情绪
+    "get_concept_list",
+    "get_concept_constituents",
+    "get_concept_money_flow",
+    "get_money_flow_stock",
+    "get_earnings_calendar",
+    "get_earnings_preannouncement",
+    "get_market_overview",
+    "get_margin_trading_summary",
+    "get_fear_greed_index",
     # 市场估值
     "get_market_pb",
     "get_global_index_daily",
