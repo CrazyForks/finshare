@@ -328,6 +328,24 @@ class DataSourceManager:
             logger.warning(f"从 {source_name} 获取分钟线失败: {e}")
             return None
 
+    def get_minutely_data_tiered(
+        self,
+        code: str,
+        start: str = None,
+        end: str = None,
+        freq: int = 5,
+        adjust: str = None,
+    ) -> pd.DataFrame:
+        """获取分钟K线数据（多源路由）。"""
+        result = self._tiered_request(
+            data_type=DataType.MINUTE,
+            method_name="get_minutely_data",
+            args=(code,),
+            kwargs={"start": start, "end": end, "freq": freq},
+            collector_name="MinuteData",
+        )
+        return result if result is not None else pd.DataFrame()
+
     def get_historical_data(
         self,
         code: str,
